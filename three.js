@@ -18,7 +18,7 @@ document.getElementById('playPauseButton').addEventListener('click', () => {
 
 document.getElementById('renderButton').addEventListener('click', async () => {
     console.log("Render button clicked");
-    await startRendering();
+    await startRecording();
 });
 
 document.getElementById('fileInput').addEventListener('change', function(event) {
@@ -38,6 +38,47 @@ document.getElementById('fileInput').addEventListener('change', function(event) 
 
 function isPlaying(audioIn) {
     return !audioIn.paused;
+}
+
+async function startRecording() {
+    // Create a new MediaRecorder instance to record canvas stream
+    const stream = renderer.domElement.captureStream();
+    const recorder = new MediaRecorder(stream);
+
+    // Prepare data chunks to store the recorded frames
+    recorder.ondataavailable = function(e) {
+        frames.push(e.data);
+    };
+
+    // Start recording
+    recorder.start();
+
+    // Stop recording after audio finishes
+    audio.addEventListener('ended', function() {
+        recorder.stop();
+        recorder.ondataavailable = null;
+        recorder.onstop = saveRecording;
+    });
+}
+
+async function saveRecording() {
+    // Convert frames to a single Blob
+    const blob = new Blob(frames, { type: 'video/webm' });
+
+    // Download the recording or handle as needed
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.style.display = 'none';
+    a.href = url;
+    a.download = 'spectrum.webm';
+    document.body.appendChild(a);
+    a.click();
+    setTimeout(() => {
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+    }, 100);
+
+    frames = [];
 }
 
 function startViz() {
