@@ -104,108 +104,10 @@ function startViz() {
         camera.updateProjectionMatrix();
     });
 
-    function render() {
-        analyser.getByteFrequencyData(dataArray);
-
-        var lowerHalfArray = dataArray.slice(0, (dataArray.length / 2) - 1);
-        var upperHalfArray = dataArray.slice((dataArray.length / 2) - 1, dataArray.length - 1);
-
-        var overallAvg = avg(dataArray);
-        var lowerMax = max(lowerHalfArray);
-        var lowerAvg = avg(lowerHalfArray);
-        var upperMax = max(upperHalfArray);
-        var upperAvg = avg(upperHalfArray);
-
-        var lowerMaxFr = lowerMax / lowerHalfArray.length;
-        var lowerAvgFr = lowerAvg / lowerHalfArray.length;
-        var upperMaxFr = upperMax / upperHalfArray.length;
-        var upperAvgFr = upperAvg / upperHalfArray.length;
-
-        ball.rotation.x += 0.001;
-        ball.rotation.y += 0.005;
-        ball.rotation.z += 0.002;
-
-        WarpBall(ball, modulate(Math.pow(lowerMaxFr, 0.8), 0, 1, 0, 12), modulate(upperAvgFr, 0, 1, 0, 6));
-
-        renderer.render(scene, camera);
-
-        capturer.capture(renderer.domElement);
-
-        if (!audio.paused) {
-            requestAnimationFrame(render);
-        } else {
-            capturer.stop();
-            capturer.save();
-            createVideoFromFrames();
-        }
-    }
-
-    function WarpBall(mesh, bassFr, treFr) {
-        mesh.geometry.vertices.forEach(function(vertex, i) {
-            var offset = mesh.geometry.parameters.radius;
-            var amp = 8; // Increased amplitude for more impact
-            var time = window.performance.now();
-            vertex.normalize();
-            var rf = 0.00001;
-            var distance = (offset + bassFr) + noise.noise3D(vertex.x + time * rf * 6, vertex.y + time * rf * 7, vertex.z + time * rf * 8) * amp * treFr;
-            vertex.multiplyScalar(distance);
-        });
-        mesh.geometry.verticesNeedUpdate = true;
-        mesh.geometry.normalsNeedUpdate = true;
-        mesh.geometry.computeVertexNormals();
-        mesh.geometry.computeFaceNormals();
-    }
-
     render();
 }
 
-//helper functions
-function fractionate(val, minVal, maxVal) {
-    return (val - minVal) / (maxVal - minVal);
-}
-
-function modulate(val, minVal, maxVal, outMin, outMax) {
-    var fr = fractionate(val, minVal, maxVal);
-    var delta = outMax - outMin;
-    return outMin + (fr * delta);
-}
-
-function avg(arr) {
-    var total = arr.reduce(function(sum, b) { return sum + b; });
-    return (total / arr.length);
-}
-
-function max(arr) {
-    return arr.reduce(function(a, b) { return Math.max(a, b); })
-}
-
-async function startRendering() {
-    // Ensure ffmpeg is loaded and ready
-    if (!ffmpeg) {
-        ffmpeg = createFFmpeg({
-            log: true,
-            corePath: 'ffmpeg-core.min.js', // Adjust path as necessary
-        });
-        await ffmpeg.load();
-    }
-
-    frames = []; // Clear any existing frames
-
-    // Initialize CCapture
-    capturer = new CCapture({
-        format: 'webm',
-        framerate: 30,
-        name: 'spectrum-capture',
-        quality: 100,
-        verbose: true
-    });
-
-    capturer.start();
-    audio.play();
-    renderFrame();
-}
-
-function renderFrame() {
+function render() {
     analyser.getByteFrequencyData(dataArray);
 
     var lowerHalfArray = dataArray.slice(0, (dataArray.length / 2) - 1);
@@ -230,35 +132,41 @@ function renderFrame() {
 
     renderer.render(scene, camera);
 
-    capturer.capture(renderer.domElement);
-
-    if (!audio.paused) {
-        requestAnimationFrame(renderFrame);
-    } else {
-        capturer.stop();
-        capturer.save();
-        createVideoFromFrames();
-    }
+    requestAnimationFrame(render);
 }
 
-async function createVideoFromFrames() {
-    const videoOutput = 'output.webm';
-
-    capturer.save(async function(blob) {
-        const reader = new FileReader();
-        reader.onloadend = async function() {
-            const uint8Array = new Uint8Array(reader.result);
-            await ffmpeg.FS('writeFile', videoOutput, uint8Array);
-            await ffmpeg.run('-i', videoOutput, '-c:v', 'libvpx-vp9', '-b:v', '1M', '-pix_fmt', 'yuv420p', '-threads', '8', '-deadline', 'realtime', '-cpu-used', '-5', '-c:a', 'libopus', '-b:a', '192k', '-f', 'webm', 'output.webm');
-            const data = ffmpeg.FS('readFile', 'output.webm');
-            const videoBlob = new Blob([data.buffer], { type: 'video/webm' });
-            const url = URL.createObjectURL(videoBlob);
-
-            const a = document.createElement('a');
-            a.href = url;
-            a.download = 'spectrum.webm';
-            a.click();
-        };
-        reader.readAsArrayBuffer(blob);
+function WarpBall(mesh, bassFr, treFr) {
+    mesh.geometry.vertices.forEach(function(vertex, i) {
+        var offset = mesh.geometry.parameters.radius;
+        var amp = 8; // Increased amplitude for more impact
+        var time = window.performance.now();
+        vertex.normalize();
+        var rf = 0.00001;
+        var distance = (offset + bassFr) + noise.noise3D(vertex.x + time * rf * 6, vertex.y + time * rf * 7, vertex.z + time * rf * 8) * amp * treFr;
+        vertex.multiplyScalar(distance);
     });
+    mesh.geometry.verticesNeedUpdate = true;
+    mesh.geometry.normalsNeedUpdate = true;
+    mesh.geometry.computeVertexNormals();
+    mesh.geometry.computeFaceNormals();
+}
+
+//helper functions
+function fractionate(val, minVal, maxVal) {
+    return (val - minVal) / (maxVal - minVal);
+}
+
+function modulate(val, minVal, maxVal, outMin, outMax) {
+    var fr = fractionate(val, minVal, maxVal);
+    var delta = outMax - outMin;
+    return outMin + (fr * delta);
+}
+
+function avg(arr) {
+    var total = arr.reduce(function(sum, b) { return sum + b; });
+    return (total / arr.length);
+}
+
+function max(arr) {
+    return arr.reduce(function(a, b) { return Math.max(a, b); })
 }
