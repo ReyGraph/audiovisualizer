@@ -1,3 +1,5 @@
+/* for anyone viewing this file, this sh8 doesnt function like expected 🤠*/
+
 ;(function() {
 
     "use strict";
